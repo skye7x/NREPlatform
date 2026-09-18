@@ -1,4 +1,4 @@
-NREPlatform — Network Resilience Experimentation Platform
+NREPlatform - Network Resilience Experimentation Platform
 
 1. Cel projektu
 NREPlatform to platforma działająca na routerze z OpenWrt, przeznaczona do kontrolowanego testowania odporności sieci oraz urządzeń na różnego rodzaju problemy z połączeniem.
