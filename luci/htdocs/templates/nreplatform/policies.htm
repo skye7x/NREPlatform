@@ -1,0 +1,354 @@
+<%+header%>
+
+<h2><%:NREPlatform Policy Rules%></h2>
+
+<div class="cbi-section">
+    <h3><%:Saved Policies%></h3>
+    <div class="cbi-section-node">
+        <table class="cbi-section-table" id="policies-table">
+            <thead>
+                <tr>
+                    <th><%:ID%></th>
+                    <th><%:Name%></th>
+                    <th><%:Conditions%></th>
+                    <th><%:Logic%></th>
+                    <th><%:Action%></th>
+                    <th><%:Action Param%></th>
+                    <th><%:Enabled%></th>
+                    <th><%:Actions%></th>
+                </tr>
+            </thead>
+            <tbody id="policies-body">
+                <tr><td colspan="8"><%:Loading policies...%></td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="cbi-section">
+    <h3><%:Create New Policy%></h3>
+    <div class="cbi-section-node">
+        <form id="policy-form" onsubmit="return false;">
+            <table class="cbi-section-table">
+                <tr>
+                    <td><strong><%:Policy Name%></strong></td>
+                    <td>
+                        <input type="text" id="policy-name" class="cbi-input-text" style="width: 300px;" placeholder="<%:e.g. High Latency Alert%>" />
+                    </td>
+                </tr>
+                <tr>
+                    <td><strong><%:Logic%></strong></td>
+                    <td>
+                        <select id="policy-logic" class="cbi-input-select" style="width: 300px;">
+                            <option value="AND"><%:AND - All conditions must match%></option>
+                            <option value="OR"><%:OR - Any condition can match%></option>
+                        </select>
+                    </td>
+                </tr>
+            </table>
+
+            <h4><%:Conditions (up to 5)%></h4>
+            <div id="conditions-container">
+                <table class="cbi-section-table" id="conditions-table">
+                    <thead>
+                        <tr>
+                            <th><%:Metric%></th>
+                            <th><%:Operator%></th>
+                            <th><%:Value%></th>
+                            <th><%:Remove%></th>
+                        </tr>
+                    </thead>
+                    <tbody id="conditions-body">
+                    </tbody>
+                </table>
+            </div>
+            <div style="margin-top: 10px;">
+                <button type="button" class="cbi-button cbi-button-add" onclick="addCondition()">
+                    <%:Add Condition%>
+                </button>
+            </div>
+
+            <table class="cbi-section-table" style="margin-top: 15px;">
+                <tr>
+                    <td><strong><%:Action%></strong></td>
+                    <td>
+                        <select id="policy-action" class="cbi-input-select" style="width: 300px;">
+                            <option value="trigger_alert"><%:trigger_alert%></option>
+                            <option value="create_log_entry"><%:create_log_entry%></option>
+                            <option value="block_traffic"><%:block_traffic%></option>
+                            <option value="allow_traffic"><%:allow_traffic%></option>
+                            <option value="enable_qos"><%:enable_qos%></option>
+                            <option value="change_dns"><%:change_dns%></option>
+                            <option value="restart_service"><%:restart_service%></option>
+                            <option value="change_network_profile"><%:change_network_profile%></option>
+                            <option value="start_experiment"><%:start_experiment%></option>
+                            <option value="stop_experiment"><%:stop_experiment%></option>
+                        </select>
+                    </td>
+                </tr>
+                <tr>
+                    <td><strong><%:Action Parameter%></strong></td>
+                    <td>
+                        <input type="text" id="policy-action-param" class="cbi-input-text" style="width: 300px;" placeholder="<%:Optional parameter for the action%>" />
+                    </td>
+                </tr>
+            </table>
+
+            <div style="margin-top: 15px;">
+                <button type="button" class="cbi-button cbi-button-apply" onclick="createPolicy()">
+                    <%:Create Policy%>
+                </button>
+                <button type="button" class="cbi-button cbi-button-reset" onclick="resetForm()">
+                    <%:Reset%>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="policy-message" style="display: none; margin: 10px 0; padding: 10px; border-radius: 4px;"></div>
+
+<script type="text/javascript">
+//<![CDATA[
+
+var conditionCount = 0;
+var maxConditions = 5;
+
+var metrics = ['latency', 'packet_loss', 'jitter', 'bandwidth'];
+var operators = ['>', '<', '>=', '<=', '=='];
+
+function loadPolicies() {
+    XHR.get('<%=luci.dispatcher.build_url("admin", "nreplatform", "api", "policies")%>', null,
+        function(x, data) {
+            var tbody = document.getElementById('policies-body');
+            if (!data || data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8"><%:No policies configured. Create one below.%></td></tr>';
+                return;
+            }
+            tbody.innerHTML = '';
+            data.forEach(function(p) {
+                var tr = document.createElement('tr');
+                var conditionsStr = '';
+                if (p.conditions && p.conditions.length > 0) {
+                    conditionsStr = p.conditions.map(function(c) {
+                        return c.metric + ' ' + c.operator + ' ' + c.value;
+                    }).join(', ');
+                } else {
+                    conditionsStr = '--';
+                }
+                var enabledStr = p.enabled ? '<%:Yes%>' : '<%:No%>';
+                tr.innerHTML = '<td>' + p.id + '</td>' +
+                    '<td>' + escapeHtml(p.name) + '</td>' +
+                    '<td>' + escapeHtml(conditionsStr) + '</td>' +
+                    '<td>' + p.logic + '</td>' +
+                    '<td>' + p.action + '</td>' +
+                    '<td>' + escapeHtml(p.action_param || '') + '</td>' +
+                    '<td>' + enabledStr + '</td>' +
+                    '<td>' +
+                        '<button class="cbi-button cbi-button-remove" onclick="deletePolicy(' + p.id + ')"><%:Delete%></button> ' +
+                        '<button class="cbi-button cbi-button-apply" onclick="togglePolicy(' + p.id + ', ' + !p.enabled + ')">' +
+                            (p.enabled ? '<%:Disable%>' : '<%:Enable%>') +
+                        '</button>' +
+                    '</td>';
+                tbody.appendChild(tr);
+            });
+        }
+    );
+}
+
+function addCondition() {
+    if (conditionCount >= maxConditions) {
+        alert('<%:Maximum 5 conditions allowed.%>');
+        return;
+    }
+
+    var tbody = document.getElementById('conditions-body');
+    var tr = document.createElement('tr');
+    tr.id = 'condition-row-' + conditionCount;
+
+    var metricOptions = '';
+    metrics.forEach(function(m) {
+        metricOptions += '<option value="' + m + '">' + m + '</option>';
+    });
+
+    var operatorOptions = '';
+    operators.forEach(function(o) {
+        operatorOptions += '<option value="' + o + '">' + o + '</option>';
+    });
+
+    tr.innerHTML =
+        '<td>' +
+            '<select class="cbi-input-select condition-metric" style="width: 150px;">' +
+                metricOptions +
+            '</select>' +
+        '</td>' +
+        '<td>' +
+            '<select class="cbi-input-select condition-operator" style="width: 80px;">' +
+                operatorOptions +
+            '</select>' +
+        '</td>' +
+        '<td>' +
+            '<input type="text" class="cbi-input-text condition-value" style="width: 120px;" placeholder="<%:value%>" />' +
+        '</td>' +
+        '<td>' +
+            '<button type="button" class="cbi-button cbi-button-remove" onclick="removeCondition(' + conditionCount + ')">' +
+                '<%:Remove%>' +
+            '</button>' +
+        '</td>';
+
+    tbody.appendChild(tr);
+    conditionCount++;
+    updateAddButton();
+}
+
+function removeCondition(index) {
+    var row = document.getElementById('condition-row-' + index);
+    if (row) {
+        row.parentNode.removeChild(row);
+        conditionCount--;
+        updateAddButton();
+    }
+}
+
+function updateAddButton() {
+    var btn = document.querySelector('.cbi-button-add');
+    if (conditionCount >= maxConditions) {
+        btn.disabled = true;
+        btn.style.opacity = '0.5';
+    } else {
+        btn.disabled = false;
+        btn.style.opacity = '1';
+    }
+}
+
+function getConditions() {
+    var conditions = [];
+    var rows = document.querySelectorAll('#conditions-body tr');
+    rows.forEach(function(row) {
+        var metric = row.querySelector('.condition-metric').value;
+        var operator = row.querySelector('.condition-operator').value;
+        var value = row.querySelector('.condition-value').value;
+        if (metric && operator && value) {
+            conditions.push({
+                metric: metric,
+                operator: operator,
+                value: value
+            });
+        }
+    });
+    return conditions;
+}
+
+function createPolicy() {
+    var name = document.getElementById('policy-name').value.trim();
+    var logic = document.getElementById('policy-logic').value;
+    var action = document.getElementById('policy-action').value;
+    var actionParam = document.getElementById('policy-action-param').value.trim();
+    var conditions = getConditions();
+
+    if (!name) {
+        showMessage('<%:Please enter a policy name.%>', 'error');
+        return;
+    }
+
+    if (conditions.length === 0) {
+        showMessage('<%:Please add at least one condition.%>', 'error');
+        return;
+    }
+
+    var payload = {
+        name: name,
+        logic: logic,
+        conditions: conditions,
+        action: action,
+        action_param: actionParam,
+        enabled: true
+    };
+
+    XHR.post('<%=luci.dispatcher.build_url("admin", "nreplatform", "api", "policies")%>',
+        JSON.stringify(payload),
+        function(x, data) {
+            if (data && data.status === 'ok') {
+                showMessage('<%:Policy created successfully.%>', 'success');
+                resetForm();
+                loadPolicies();
+            } else {
+                showMessage('<%:Failed to create policy.%>', 'error');
+            }
+        }
+    );
+}
+
+function deletePolicy(id) {
+    if (!confirm('<%:Are you sure you want to delete this policy?%>')) {
+        return;
+    }
+
+    XHR.get('<%=luci.dispatcher.build_url("admin", "nreplatform", "api", "delete_policy")%>',
+        { id: id },
+        function(x, data) {
+            if (data && data.status === 'ok') {
+                showMessage('<%:Policy deleted.%>', 'success');
+                loadPolicies();
+            } else {
+                showMessage('<%:Failed to delete policy.%>', 'error');
+            }
+        }
+    );
+}
+
+function togglePolicy(id, enabled) {
+    XHR.get('<%=luci.dispatcher.build_url("admin", "nreplatform", "api", "toggle_policy")%>',
+        { id: id, enabled: enabled ? '1' : '0' },
+        function(x, data) {
+            if (data && data.status === 'ok') {
+                loadPolicies();
+            } else {
+                showMessage('<%:Failed to update policy.%>', 'error');
+            }
+        }
+    );
+}
+
+function showMessage(msg, type) {
+    var el = document.getElementById('policy-message');
+    el.style.display = 'block';
+    el.textContent = msg;
+    if (type === 'error') {
+        el.style.backgroundColor = '#fce4e4';
+        el.style.color = '#c00';
+        el.style.border = '1px solid #c00';
+    } else {
+        el.style.backgroundColor = '#e4fce4';
+        el.style.color = '#060';
+        el.style.border = '1px solid #060';
+    }
+    setTimeout(function() {
+        el.style.display = 'none';
+    }, 4000);
+}
+
+function escapeHtml(text) {
+    var div = document.createElement('div');
+    div.appendChild(document.createTextNode(text));
+    return div.innerHTML;
+}
+
+function resetForm() {
+    document.getElementById('policy-name').value = '';
+    document.getElementById('policy-logic').selectedIndex = 0;
+    document.getElementById('policy-action').selectedIndex = 0;
+    document.getElementById('policy-action-param').value = '';
+    document.getElementById('conditions-body').innerHTML = '';
+    conditionCount = 0;
+    updateAddButton();
+}
+
+// Initialize
+loadPolicies();
+addCondition();
+
+//]]>
+</script>
+
+<%+footer%>

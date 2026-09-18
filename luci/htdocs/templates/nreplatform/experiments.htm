@@ -1,0 +1,245 @@
+<%+header%>
+
+<h2><%:NREPlatform Experiments%></h2>
+
+<div class="cbi-section">
+    <h3><%:Available Experiment Profiles%></h3>
+    <div class="cbi-section-node">
+        <table class="cbi-section-table" id="profiles-table">
+            <thead>
+                <tr>
+                    <th><%:Name%></th>
+                    <th><%:Description%></th>
+                    <th><%:Actions%></th>
+                </tr>
+            </thead>
+            <tbody id="profiles-body">
+                <tr><td colspan="3"><%:Loading profiles...%></td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="cbi-section">
+    <h3><%:Start Experiment%></h3>
+    <div class="cbi-section-node">
+        <form id="experiment-form" onsubmit="return false;">
+            <table class="cbi-section-table">
+                <tr>
+                    <td><strong><%:Profile%></strong></td>
+                    <td>
+                        <select id="profile-select" class="cbi-input-select" style="width: 300px;">
+                            <option value=""><%:-- Select Profile --%></option>
+                        </select>
+                    </td>
+                </tr>
+                <tr>
+                    <td><strong><%:Network Interface%></strong></td>
+                    <td>
+                        <select id="iface-select" class="cbi-input-select" style="width: 300px;">
+                            <option value="eth0">eth0</option>
+                            <option value="br-lan">br-lan</option>
+                            <option value="wlan0">wlan0</option>
+                        </select>
+                    </td>
+                </tr>
+                <tr>
+                    <td><strong><%:Duration (seconds)%></strong></td>
+                    <td>
+                        <input type="number" id="duration-input" class="cbi-input-text" value="60" min="1" max="3600" style="width: 300px;" />
+                    </td>
+                </tr>
+            </table>
+            <div style="margin-top: 10px;">
+                <button type="button" class="cbi-button cbi-button-apply" onclick="startExperiment()">
+                    <%:Start Experiment%>
+                </button>
+                <button type="button" class="cbi-button cbi-button-reset" onclick="resetForm()">
+                    <%:Reset%>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="cbi-section">
+    <h3><%:Experiment Status%></h3>
+    <div class="cbi-section-node">
+        <div id="experiment-status">
+            <table class="cbi-section-table">
+                <tr><td><strong><%:State%></strong></td><td id="exp-state"><%:Idle%></td></tr>
+                <tr><td><strong><%:Active Profile%></strong></td><td id="exp-profile">--</td></tr>
+                <tr><td><strong><%:Elapsed Time%></strong></td><td id="exp-elapsed">--</td></tr>
+                <tr><td><strong><%:Result%></strong></td><td id="exp-result">--</td></tr>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="cbi-section">
+    <h3><%:Recent Experiments%></h3>
+    <div class="cbi-section-node">
+        <table class="cbi-section-table" id="history-table">
+            <thead>
+                <tr>
+                    <th><%:ID%></th>
+                    <th><%:Name%></th>
+                    <th><%:Type%></th>
+                    <th><%:Target%></th>
+                    <th><%:Duration%></th>
+                    <th><%:Status%></th>
+                    <th><%:Health%></th>
+                </tr>
+            </thead>
+            <tbody id="history-body">
+                <tr><td colspan="7"><%:Loading history...%></td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script type="text/javascript">
+//<![CDATA[
+
+var pollTimer = null;
+var elapsedSeconds = 0;
+
+function loadProfiles() {
+    XHR.get('<%=luci.dispatcher.build_url("admin", "nreplatform", "api", "experiments")%>', null,
+        function(x, data) {
+            var tbody = document.getElementById('profiles-body');
+            var select = document.getElementById('profile-select');
+
+            // Reset select
+            select.innerHTML = '<option value=""><%:-- Select Profile --%></option>';
+
+            if (!data || data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="3"><%:No profiles available. Create profiles in the Profiles tab.%></td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = '';
+            data.forEach(function(name) {
+                // Table row
+                var tr = document.createElement('tr');
+                tr.innerHTML = '<td>' + name.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</td>' +
+                    '<td>--</td>' +
+                    '<td><button class="cbi-button cbi-button-apply" onclick="selectProfile(\'' +
+                    name.replace(/'/g, "\\'") + '\')"><%:Select%></button></td>';
+                tbody.appendChild(tr);
+
+                // Dropdown option
+                var opt = document.createElement('option');
+                opt.value = name;
+                opt.textContent = name;
+                select.appendChild(opt);
+            });
+        }
+    );
+}
+
+function selectProfile(name) {
+    var select = document.getElementById('profile-select');
+    select.value = name;
+    select.focus();
+}
+
+function startExperiment() {
+    var profile = document.getElementById('profile-select').value;
+    var iface = document.getElementById('iface-select').value;
+    var duration = document.getElementById('duration-input').value;
+
+    if (!profile) {
+        alert('<%:Please select a profile first.%>');
+        return;
+    }
+
+    // Update UI to starting state
+    document.getElementById('exp-state').innerHTML = '<%:Starting...%>';
+    document.getElementById('exp-profile').textContent = profile;
+    document.getElementById('exp-elapsed').textContent = '0 s';
+    document.getElementById('exp-result').innerHTML = '<%:Waiting for response...%>';
+
+    XHR.get('<%=luci.dispatcher.build_url("admin", "nreplatform", "api", "start_experiment")%>',
+        { name: profile, iface: iface, duration: duration },
+        function(x, data) {
+            if (data && data.status === 'started') {
+                document.getElementById('exp-state').innerHTML = '<%:Running%>';
+                document.getElementById('exp-result').innerHTML = '<%:Experiment started successfully.%>';
+                startElapsedTimer();
+                loadHistory();
+            } else {
+                document.getElementById('exp-state').innerHTML = '<%:Error%>';
+                document.getElementById('exp-result').innerHTML = '<%:Failed to start experiment.%>';
+            }
+        }
+    );
+}
+
+function startElapsedTimer() {
+    elapsedSeconds = 0;
+    if (pollTimer) {
+        clearInterval(pollTimer);
+    }
+    pollTimer = setInterval(function() {
+        elapsedSeconds++;
+        var h = Math.floor(elapsedSeconds / 3600);
+        var m = Math.floor((elapsedSeconds % 3600) / 60);
+        var s = elapsedSeconds % 60;
+        var display = '';
+        if (h > 0) display += h + 'h ';
+        if (m > 0 || h > 0) display += m + 'm ';
+        display += s + 's';
+        document.getElementById('exp-elapsed').textContent = display;
+    }, 1000);
+}
+
+function loadHistory() {
+    XHR.get('<%=luci.dispatcher.build_url("admin", "nreplatform", "api", "history")%>', null,
+        function(x, data) {
+            var tbody = document.getElementById('history-body');
+            if (!data || data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7"><%:No experiment history available.%></td></tr>';
+                return;
+            }
+            tbody.innerHTML = '';
+            data.forEach(function(r) {
+                var tr = document.createElement('tr');
+                tr.innerHTML = '<td>' + r.id + '</td>' +
+                    '<td>' + r.name + '</td>' +
+                    '<td>' + r.type + '</td>' +
+                    '<td>' + r.target + '</td>' +
+                    '<td>' + r.duration + 's</td>' +
+                    '<td>' + r.status + '</td>' +
+                    '<td>' + r.health + '</td>';
+                tbody.appendChild(tr);
+            });
+        }
+    );
+}
+
+function resetForm() {
+    document.getElementById('profile-select').selectedIndex = 0;
+    document.getElementById('iface-select').selectedIndex = 0;
+    document.getElementById('duration-input').value = 60;
+    document.getElementById('exp-state').innerHTML = '<%:Idle%>';
+    document.getElementById('exp-profile').textContent = '--';
+    document.getElementById('exp-elapsed').textContent = '--';
+    document.getElementById('exp-result').textContent = '--';
+    if (pollTimer) {
+        clearInterval(pollTimer);
+        pollTimer = null;
+    }
+}
+
+// Initialize on page load
+loadProfiles();
+loadHistory();
+
+// Refresh history every 30 seconds
+setInterval(loadHistory, 30000);
+
+//]]>
+</script>
+
+<%+footer%>

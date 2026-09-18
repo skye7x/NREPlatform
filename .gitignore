@@ -1,0 +1,35 @@
+# Build output
+nre
+*.o
+
+# Logs
+nre.log
+
+# Runtime data
+profiles/
+history/
+chains/
+schedules/
+users/
+audit/
+running/
+policies/
+presets/
+data/
+results/
+
+# Database
+*.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary
+pending_profile_change.txt

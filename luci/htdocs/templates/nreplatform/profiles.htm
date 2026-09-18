@@ -1,0 +1,246 @@
+<%+header%>
+
+<h2><%:Experiment Profiles%></h2>
+
+<fieldset class="cbi-section">
+	<legend><%:Saved Profiles%></legend>
+
+	<table class="cbi-section-table" id="profiles-table">
+		<thead>
+			<tr class="cbi-section-table-titles">
+				<th class="cbi-section-table-cell"><%:Name%></th>
+				<th class="cbi-section-table-cell"><%:Target IP%></th>
+				<th class="cbi-section-table-cell"><%:Target MAC%></th>
+				<th class="cbi-section-table-cell"><%:Latency (ms)%></th>
+				<th class="cbi-section-table-cell"><%:Jitter (ms)%></th>
+				<th class="cbi-section-table-cell"><%:Packet Loss (%)%></th>
+				<th class="cbi-section-table-cell"><%:Download (kbit/s)%></th>
+				<th class="cbi-section-table-cell"><%:Upload (kbit/s)%></th>
+				<th class="cbi-section-table-cell"><%:Duration (s)%></th>
+				<th class="cbi-section-table-cell"><%:Actions%></th>
+			</tr>
+		</thead>
+		<tbody id="profiles-tbody">
+			<tr class="cbi-section-table-row">
+				<td colspan="10"><em><%:Loading profiles...%></em></td>
+			</tr>
+		</tbody>
+	</table>
+</fieldset>
+
+<fieldset class="cbi-section">
+	<legend><%:Create New Profile%></legend>
+
+	<div class="cbi-section-descr"><%:Define a new experiment profile with network parameters.%></div>
+
+	<div class="cbi-section-node">
+		<table class="cbi-section-table">
+			<tr class="cbi-section-table-row">
+				<td class="cbi-value-field"><%:Name%></td>
+				<td class="cbi-value-field">
+					<input type="text" id="profile-name" class="cbi-input-text" placeholder="e.g. profile-1" />
+				</td>
+			</tr>
+			<tr class="cbi-section-table-row">
+				<td class="cbi-value-field"><%:Target IP%></td>
+				<td class="cbi-value-field">
+					<input type="text" id="profile-target-ip" class="cbi-input-text" placeholder="e.g. 192.168.1.100" />
+				</td>
+			</tr>
+			<tr class="cbi-section-table-row">
+				<td class="cbi-value-field"><%:Target MAC%></td>
+				<td class="cbi-value-field">
+					<input type="text" id="profile-target-mac" class="cbi-input-text" placeholder="e.g. AA:BB:CC:DD:EE:FF" />
+				</td>
+			</tr>
+			<tr class="cbi-section-table-row">
+				<td class="cbi-value-field"><%:Latency (ms)%></td>
+				<td class="cbi-value-field">
+					<input type="number" id="profile-latency" class="cbi-input-text" min="0" value="0" />
+				</td>
+			</tr>
+			<tr class="cbi-section-table-row">
+				<td class="cbi-value-field"><%:Jitter (ms)%></td>
+				<td class="cbi-value-field">
+					<input type="number" id="profile-jitter" class="cbi-input-text" min="0" value="0" />
+				</td>
+			</tr>
+			<tr class="cbi-section-table-row">
+				<td class="cbi-value-field"><%:Packet Loss (%)%></td>
+				<td class="cbi-value-field">
+					<input type="number" id="profile-packet-loss" class="cbi-input-text" min="0" max="100" step="0.1" value="0" />
+				</td>
+			</tr>
+			<tr class="cbi-section-table-row">
+				<td class="cbi-value-field"><%:Download (kbit/s)%></td>
+				<td class="cbi-value-field">
+					<input type="number" id="profile-download" class="cbi-input-text" min="0" value="0" />
+				</td>
+			</tr>
+			<tr class="cbi-section-table-row">
+				<td class="cbi-value-field"><%:Upload (kbit/s)%></td>
+				<td class="cbi-value-field">
+					<input type="number" id="profile-upload" class="cbi-input-text" min="0" value="0" />
+				</td>
+			</tr>
+			<tr class="cbi-section-table-row">
+				<td class="cbi-value-field"><%:Duration (s)%></td>
+				<td class="cbi-value-field">
+					<input type="number" id="profile-duration" class="cbi-input-text" min="1" value="60" />
+				</td>
+			</tr>
+		</table>
+	</div>
+
+	<div class="cbi-section-actions">
+		<input type="button" class="cbi-button cbi-button-apply" id="btn-create-profile" value="<%:Create Profile%>" />
+	</div>
+</fieldset>
+
+<script type="text/javascript">
+//<![CDATA[
+	var profiles = [];
+
+	function requestProfiles() {
+		var xhr = new XMLHttpRequest();
+		xhr.open('GET', '<%=luci.dispatcher.build_url("admin", "nreplatform", "profiles")%>?action=list', true);
+		xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+		xhr.onreadystatechange = function() {
+			if (xhr.readyState === 4) {
+				if (xhr.status === 200) {
+					try {
+						profiles = JSON.parse(xhr.responseText);
+						renderProfiles();
+					} catch(e) {
+						renderProfilesError();
+					}
+				} else {
+					renderProfilesError();
+				}
+			}
+		};
+		xhr.send();
+	}
+
+	function renderProfiles() {
+		var tbody = document.getElementById('profiles-tbody');
+		tbody.innerHTML = '';
+
+		if (!profiles || profiles.length === 0) {
+			var row = document.createElement('tr');
+			row.className = 'cbi-section-table-row';
+			row.innerHTML = '<td colspan="10"><em><%:No profiles saved.%></em></td>';
+			tbody.appendChild(row);
+			return;
+		}
+
+		for (var i = 0; i < profiles.length; i++) {
+			var p = profiles[i];
+			var row = document.createElement('tr');
+			row.className = 'cbi-section-table-row';
+			row.innerHTML = '<td class="cbi-section-table-cell">' + escapeHtml(p.name) + '</td>' +
+				'<td class="cbi-section-table-cell">' + escapeHtml(p.target_ip) + '</td>' +
+				'<td class="cbi-section-table-cell">' + escapeHtml(p.target_mac) + '</td>' +
+				'<td class="cbi-section-table-cell">' + escapeHtml(String(p.latency)) + '</td>' +
+				'<td class="cbi-section-table-cell">' + escapeHtml(String(p.jitter)) + '</td>' +
+				'<td class="cbi-section-table-cell">' + escapeHtml(String(p.packet_loss)) + '</td>' +
+				'<td class="cbi-section-table-cell">' + escapeHtml(String(p.download)) + '</td>' +
+				'<td class="cbi-section-table-cell">' + escapeHtml(String(p.upload)) + '</td>' +
+				'<td class="cbi-section-table-cell">' + escapeHtml(String(p.duration)) + '</td>' +
+				'<td class="cbi-section-table-cell">' +
+					'<input type="button" class="cbi-button cbi-button-remove" ' +
+					'value="<%:Delete%>" data-profile="' + escapeHtml(p.name) + '" ' +
+					'onclick="deleteProfile(this.getAttribute(\'data-profile\'))" />' +
+				'</td>';
+			tbody.appendChild(row);
+		}
+	}
+
+	function renderProfilesError() {
+		var tbody = document.getElementById('profiles-tbody');
+		tbody.innerHTML = '<tr class="cbi-section-table-row"><td colspan="10"><em><%:Failed to load profiles.%></em></td></tr>';
+	}
+
+	function escapeHtml(str) {
+		var div = document.createElement('div');
+		div.appendChild(document.createTextNode(str));
+		return div.innerHTML;
+	}
+
+	function createProfile() {
+		var name = document.getElementById('profile-name').value.trim();
+		if (!name) {
+			alert('<%:Profile name is required.%>');
+			return;
+		}
+
+		var payload = {
+			name: name,
+			target_ip: document.getElementById('profile-target-ip').value.trim(),
+			target_mac: document.getElementById('profile-target-mac').value.trim(),
+			latency: parseInt(document.getElementById('profile-latency').value, 10) || 0,
+			jitter: parseInt(document.getElementById('profile-jitter').value, 10) || 0,
+			packet_loss: parseFloat(document.getElementById('profile-packet-loss').value) || 0,
+			download: parseInt(document.getElementById('profile-download').value, 10) || 0,
+			upload: parseInt(document.getElementById('profile-upload').value, 10) || 0,
+			duration: parseInt(document.getElementById('profile-duration').value, 10) || 60
+		};
+
+		var xhr = new XMLHttpRequest();
+		xhr.open('POST', '<%=luci.dispatcher.build_url("admin", "nreplatform", "profiles")%>?action=save', true);
+		xhr.setRequestHeader('Content-Type', 'application/json');
+		xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+		xhr.onreadystatechange = function() {
+			if (xhr.readyState === 4) {
+				if (xhr.status === 200) {
+					clearForm();
+					requestProfiles();
+				} else {
+					alert('<%:Failed to save profile.%>');
+				}
+			}
+		};
+		xhr.send(JSON.stringify(payload));
+	}
+
+	function deleteProfile(profileName) {
+		if (!confirm('<%:Are you sure you want to delete profile?%> ' + profileName)) {
+			return;
+		}
+
+		var xhr = new XMLHttpRequest();
+		xhr.open('POST', '<%=luci.dispatcher.build_url("admin", "nreplatform", "profiles")%>?action=delete', true);
+		xhr.setRequestHeader('Content-Type', 'application/json');
+		xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+		xhr.onreadystatechange = function() {
+			if (xhr.readyState === 4) {
+				if (xhr.status === 200) {
+					requestProfiles();
+				} else {
+					alert('<%:Failed to delete profile.%>');
+				}
+			}
+		};
+		xhr.send(JSON.stringify({ name: profileName }));
+	}
+
+	function clearForm() {
+		document.getElementById('profile-name').value = '';
+		document.getElementById('profile-target-ip').value = '';
+		document.getElementById('profile-target-mac').value = '';
+		document.getElementById('profile-latency').value = '0';
+		document.getElementById('profile-jitter').value = '0';
+		document.getElementById('profile-packet-loss').value = '0';
+		document.getElementById('profile-download').value = '0';
+		document.getElementById('profile-upload').value = '0';
+		document.getElementById('profile-duration').value = '60';
+	}
+
+	document.getElementById('btn-create-profile').addEventListener('click', createProfile);
+
+	// Load profiles on page load
+	requestProfiles();
+//]]>
+</script>
+
+<%+footer%>

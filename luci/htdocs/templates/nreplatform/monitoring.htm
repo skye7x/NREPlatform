@@ -1,0 +1,364 @@
+<%+header%>
+
+<h2><%:NREPlatform Network Monitoring%></h2>
+
+<div class="cbi-section">
+    <h3><%:Health Status%></h3>
+    <div class="cbi-section-node">
+        <table class="cbi-section-table">
+            <tr>
+                <td><strong><%:Overall Health%></strong></td>
+                <td>
+                    <span id="health-indicator" style="display:inline-block; width:14px; height:14px; border-radius:50%; background:#888; vertical-align:middle; margin-right:6px;"></span>
+                    <span id="health-label"><%:Loading...%></span>
+                </td>
+            </tr>
+            <tr>
+                <td><strong><%:Connection State%></strong></td>
+                <td id="conn-state">--</td>
+            </tr>
+            <tr>
+                <td><strong><%:Target IP%></strong></td>
+                <td id="target-ip">--</td>
+            </tr>
+            <tr>
+                <td><strong><%:Last Update%></strong></td>
+                <td id="last-update">--</td>
+            </tr>
+        </table>
+    </div>
+</div>
+
+<div class="cbi-section">
+    <h3><%:Current Metrics%></h3>
+    <div class="cbi-section-node">
+        <table class="cbi-section-table" id="metrics-table">
+            <tr>
+                <td><strong><%:Latency%></strong></td>
+                <td id="metric-latency">-- ms</td>
+            </tr>
+            <tr>
+                <td><strong><%:Packet Loss%></strong></td>
+                <td id="metric-loss">-- %</td>
+            </tr>
+            <tr>
+                <td><strong><%:Jitter%></strong></td>
+                <td id="metric-jitter">-- ms</td>
+            </tr>
+            <tr>
+                <td><strong><%:Bandwidth Down%></strong></td>
+                <td id="metric-bw-down">-- Mb/s</td>
+            </tr>
+            <tr>
+                <td><strong><%:Bandwidth Up%></strong></td>
+                <td id="metric-bw-up">-- Mb/s</td>
+            </tr>
+            <tr>
+                <td><strong><%:DNS Response Time%></strong></td>
+                <td id="metric-dns">-- ms</td>
+            </tr>
+        </table>
+    </div>
+</div>
+
+<div class="cbi-section">
+    <h3><%:Latency Over Time%></h3>
+    <div class="cbi-section-node">
+        <canvas id="latency-chart" width="780" height="220" style="width:100%; background:#1a1a2e; border:1px solid #444;"></canvas>
+        <div style="margin-top:6px; font-size:11px; color:#888;">
+            <span id="chart-range-label"><%:Last 60 samples (5s intervals)%></span>
+            &mdash;
+            <span id="chart-min">min: --</span>,
+            <span id="chart-max">max: --</span>,
+            <span id="chart-avg">avg: --</span>
+        </div>
+    </div>
+</div>
+
+<div class="cbi-section">
+    <h3><%:Alerts%></h3>
+    <div class="cbi-section-node">
+        <table class="cbi-section-table" id="alerts-table">
+            <thead>
+                <tr>
+                    <th><%:Time%></th>
+                    <th><%:Severity%></th>
+                    <th><%:Message%></th>
+                </tr>
+            </thead>
+            <tbody id="alerts-body">
+                <tr><td colspan="3"><%:No alerts.%></td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script type="text/javascript">
+//<![CDATA[
+
+var MAX_SAMPLES = 60;
+var latencyHistory = [];
+var pollInterval = null;
+var chartCanvas = null;
+var chartCtx = null;
+
+var ALERT_THRESHOLD_WARN_MS = 100;
+var ALERT_THRESHOLD_CRIT_MS = 300;
+var ALERT_THRESHOLD_LOSS_WARN = 5;
+var ALERT_THRESHOLD_LOSS_CRIT = 20;
+var ALERT_THRESHOLD_JITTER_WARN = 30;
+
+function getHealthColor(health) {
+    switch ((health || '').toUpperCase()) {
+        case 'HEALTHY':  return '#2ecc71';
+        case 'DEGRADED': return '#e67e22';
+        case 'CRITICAL': return '#e74c3c';
+        default:         return '#888';
+    }
+}
+
+function setHealthIndicator(health) {
+    var color = getHealthColor(health);
+    document.getElementById('health-indicator').style.background = color;
+    document.getElementById('health-label').textContent = (health || 'UNKNOWN').toUpperCase();
+}
+
+function formatTime(ts) {
+    if (!ts) return '--';
+    var d = new Date(ts * 1000);
+    var hh = String(d.getHours()).padStart(2, '0');
+    var mm = String(d.getMinutes()).padStart(2, '0');
+    var ss = String(d.getSeconds()).padStart(2, '0');
+    return hh + ':' + mm + ':' + ss;
+}
+
+function fetchStatus() {
+    XHR.get('<%=luci.dispatcher.build_url("admin", "nreplatform", "api", "status")%>', null,
+        function(x, data) {
+            if (!data) return;
+
+            var s = data;
+            if (typeof data.raw === 'string' && data.raw.length > 0) {
+                try { s = JSON.parse(data.raw); } catch(e) { s = data; }
+            }
+
+            var health   = s.health   || s.status  || 'UNKNOWN';
+            var latency  = s.latency  != null ? parseFloat(s.latency).toFixed(1) : '--';
+            var loss     = s.loss     != null ? parseFloat(s.loss).toFixed(1)    : '--';
+            var jitter   = s.jitter   != null ? parseFloat(s.jitter).toFixed(1)  : '--';
+            var bwDown   = s.bw_down  != null ? parseFloat(s.bw_down).toFixed(1)  : '--';
+            var bwUp     = s.bw_up    != null ? parseFloat(s.bw_up).toFixed(1)    : '--';
+            var dns      = s.dns      != null ? parseFloat(s.dns).toFixed(1)     : '--';
+            var target   = s.target   || '--';
+            var state    = s.state    || s.connection || '--';
+
+            setHealthIndicator(health);
+            document.getElementById('conn-state').textContent  = state;
+            document.getElementById('target-ip').textContent   = target;
+            document.getElementById('last-update').textContent = formatTime(s.timestamp);
+
+            document.getElementById('metric-latency').textContent = latency + ' ms';
+            document.getElementById('metric-loss').textContent    = loss + ' %';
+            document.getElementById('metric-jitter').textContent  = jitter + ' ms';
+            document.getElementById('metric-bw-down').textContent = bwDown + ' Mb/s';
+            document.getElementById('metric-bw-up').textContent   = bwUp + ' Mb/s';
+            document.getElementById('metric-dns').textContent     = dns + ' ms';
+
+            if (s.alerts && s.alerts.length > 0) {
+                renderAlerts(s.alerts);
+            }
+
+            var val = parseFloat(latency);
+            if (!isNaN(val)) {
+                latencyHistory.push(val);
+                if (latencyHistory.length > MAX_SAMPLES) {
+                    latencyHistory.shift();
+                }
+                drawChart();
+                updateChartStats();
+            }
+        }
+    );
+}
+
+function renderAlerts(alerts) {
+    var tbody = document.getElementById('alerts-body');
+    if (!alerts || alerts.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="3"><%:No alerts.%></td></tr>';
+        return;
+    }
+    tbody.innerHTML = '';
+    var shown = alerts.slice(-20).reverse();
+    shown.forEach(function(a) {
+        var sev = (a.severity || 'INFO').toUpperCase();
+        var color = '#888';
+        if (sev === 'WARNING' || sev === 'WARN') color = '#e67e22';
+        else if (sev === 'CRITICAL' || sev === 'CRIT') color = '#e74c3c';
+        else if (sev === 'INFO') color = '#3498db';
+        var tr = document.createElement('tr');
+        tr.innerHTML = '<td>' + formatTime(a.timestamp) + '</td>' +
+            '<td style="color:' + color + '; font-weight:bold;">' + sev + '</td>' +
+            '<td>' + (a.message || '--') + '</td>';
+        tbody.appendChild(tr);
+    });
+}
+
+function updateChartStats() {
+    if (latencyHistory.length === 0) return;
+    var min = Infinity, max = -Infinity, sum = 0;
+    for (var i = 0; i < latencyHistory.length; i++) {
+        if (latencyHistory[i] < min) min = latencyHistory[i];
+        if (latencyHistory[i] > max) max = latencyHistory[i];
+        sum += latencyHistory[i];
+    }
+    var avg = sum / latencyHistory.length;
+    document.getElementById('chart-min').textContent = 'min: ' + min.toFixed(1) + ' ms';
+    document.getElementById('chart-max').textContent = 'max: ' + max.toFixed(1) + ' ms';
+    document.getElementById('chart-avg').textContent = 'avg: ' + avg.toFixed(1) + ' ms';
+}
+
+function drawChart() {
+    if (!chartCtx) return;
+
+    var W = chartCanvas.width;
+    var H = chartCanvas.height;
+    var padL = 50, padR = 10, padT = 10, padB = 25;
+    var plotW = W - padL - padR;
+    var plotH = H - padT - padB;
+
+    chartCtx.clearRect(0, 0, W, H);
+    chartCtx.fillStyle = '#1a1a2e';
+    chartCtx.fillRect(0, 0, W, H);
+
+    if (latencyHistory.length < 2) {
+        chartCtx.fillStyle = '#666';
+        chartCtx.font = '13px monospace';
+        chartCtx.textAlign = 'center';
+        chartCtx.fillText('<%:Waiting for data...%>', W / 2, H / 2);
+        return;
+    }
+
+    var dataMin = Infinity, dataMax = -Infinity;
+    for (var i = 0; i < latencyHistory.length; i++) {
+        if (latencyHistory[i] < dataMin) dataMin = latencyHistory[i];
+        if (latencyHistory[i] > dataMax) dataMax = latencyHistory[i];
+    }
+    if (dataMin === dataMax) { dataMin -= 1; dataMax += 1; }
+    var margin = (dataMax - dataMin) * 0.1;
+    dataMin = Math.max(0, dataMin - margin);
+    dataMax = dataMax + margin;
+
+    function xPos(idx) {
+        return padL + (idx / (latencyHistory.length - 1)) * plotW;
+    }
+    function yPos(val) {
+        return padT + plotH - ((val - dataMin) / (dataMax - dataMin)) * plotH;
+    }
+
+    // Grid lines
+    chartCtx.strokeStyle = '#2a2a4a';
+    chartCtx.lineWidth = 1;
+    var gridLines = 5;
+    for (var g = 0; g <= gridLines; g++) {
+        var gy = padT + (plotH / gridLines) * g;
+        chartCtx.beginPath();
+        chartCtx.moveTo(padL, gy);
+        chartCtx.lineTo(W - padR, gy);
+        chartCtx.stroke();
+
+        var gval = dataMax - (dataMax - dataMin) * (g / gridLines);
+        chartCtx.fillStyle = '#777';
+        chartCtx.font = '10px monospace';
+        chartCtx.textAlign = 'right';
+        chartCtx.fillText(gval.toFixed(0) + 'ms', padL - 6, gy + 3);
+    }
+
+    // Warning threshold line
+    if (ALERT_THRESHOLD_WARN_MS >= dataMin && ALERT_THRESHOLD_WARN_MS <= dataMax) {
+        var ty = yPos(ALERT_THRESHOLD_WARN_MS);
+        chartCtx.strokeStyle = '#e67e22';
+        chartCtx.lineWidth = 1;
+        chartCtx.setLineDash([4, 4]);
+        chartCtx.beginPath();
+        chartCtx.moveTo(padL, ty);
+        chartCtx.lineTo(W - padR, ty);
+        chartCtx.stroke();
+        chartCtx.setLineDash([]);
+    }
+
+    // Critical threshold line
+    if (ALERT_THRESHOLD_CRIT_MS >= dataMin && ALERT_THRESHOLD_CRIT_MS <= dataMax) {
+        var ty2 = yPos(ALERT_THRESHOLD_CRIT_MS);
+        chartCtx.strokeStyle = '#e74c3c';
+        chartCtx.lineWidth = 1;
+        chartCtx.setLineDash([4, 4]);
+        chartCtx.beginPath();
+        chartCtx.moveTo(padL, ty2);
+        chartCtx.lineTo(W - padR, ty2);
+        chartCtx.stroke();
+        chartCtx.setLineDash([]);
+    }
+
+    // Fill area under the line
+    chartCtx.beginPath();
+    chartCtx.moveTo(xPos(0), yPos(latencyHistory[0]));
+    for (var j = 1; j < latencyHistory.length; j++) {
+        chartCtx.lineTo(xPos(j), yPos(latencyHistory[j]));
+    }
+    chartCtx.lineTo(xPos(latencyHistory.length - 1), padT + plotH);
+    chartCtx.lineTo(xPos(0), padT + plotH);
+    chartCtx.closePath();
+    var grad = chartCtx.createLinearGradient(0, padT, 0, padT + plotH);
+    grad.addColorStop(0, 'rgba(52,152,219,0.25)');
+    grad.addColorStop(1, 'rgba(52,152,219,0.02)');
+    chartCtx.fillStyle = grad;
+    chartCtx.fill();
+
+    // Line
+    chartCtx.beginPath();
+    chartCtx.moveTo(xPos(0), yPos(latencyHistory[0]));
+    for (var k = 1; k < latencyHistory.length; k++) {
+        chartCtx.lineTo(xPos(k), yPos(latencyHistory[k]));
+    }
+    chartCtx.strokeStyle = '#3498db';
+    chartCtx.lineWidth = 2;
+    chartCtx.stroke();
+
+    // Current value dot
+    var lastIdx = latencyHistory.length - 1;
+    var lastVal = latencyHistory[lastIdx];
+    var lastColor = '#3498db';
+    if (lastVal >= ALERT_THRESHOLD_CRIT_MS) lastColor = '#e74c3c';
+    else if (lastVal >= ALERT_THRESHOLD_WARN_MS) lastColor = '#e67e22';
+    chartCtx.beginPath();
+    chartCtx.arc(xPos(lastIdx), yPos(lastVal), 4, 0, Math.PI * 2);
+    chartCtx.fillStyle = lastColor;
+    chartCtx.fill();
+
+    // Time axis labels
+    chartCtx.fillStyle = '#777';
+    chartCtx.font = '10px monospace';
+    chartCtx.textAlign = 'center';
+    var totalSec = latencyHistory.length * 5;
+    var labelCount = Math.min(6, latencyHistory.length);
+    for (var t = 0; t < labelCount; t++) {
+        var idx = Math.round((t / (labelCount - 1)) * (latencyHistory.length - 1));
+        var secAgo = totalSec - idx * 5;
+        var lbl = secAgo <= 0 ? 'now' : '-' + secAgo + 's';
+        chartCtx.fillText(lbl, xPos(idx), H - 5);
+    }
+}
+
+function startPolling() {
+    fetchStatus();
+    pollInterval = setInterval(fetchStatus, 5000);
+}
+
+chartCanvas = document.getElementById('latency-chart');
+chartCtx = chartCanvas.getContext('2d');
+startPolling();
+
+//]]>
+</script>
+
+<%+footer%>

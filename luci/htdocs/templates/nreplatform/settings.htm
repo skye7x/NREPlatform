@@ -1,0 +1,578 @@
+<%+header%>
+
+<h2><%:NREPlatform Settings%></h2>
+
+<div class="cbi-section">
+    <h3><%:Users%></h3>
+    <div class="cbi-section-node">
+        <table class="cbi-section-table" id="users-table">
+            <thead>
+                <tr>
+                    <th><%:Username%></th>
+                    <th><%:Level%></th>
+                    <th><%:Actions%></th>
+                </tr>
+            </thead>
+            <tbody id="users-body">
+                <tr><td colspan="3"><%:Loading users...%></td></tr>
+            </tbody>
+        </table>
+    </div>
+    <div class="cbi-section-node" style="margin-top: 10px;">
+        <h4><%:Add New User%></h4>
+        <form id="add-user-form" onsubmit="return false;">
+            <table class="cbi-section-table">
+                <tr>
+                    <td><strong><%:Username%></strong></td>
+                    <td><input type="text" id="new-username" class="cbi-input-text" style="width: 200px;" /></td>
+                </tr>
+                <tr>
+                    <td><strong><%:Password%></strong></td>
+                    <td><input type="password" id="new-password" class="cbi-input-text" style="width: 200px;" /></td>
+                </tr>
+                <tr>
+                    <td><strong><%:Level%></strong></td>
+                    <td>
+                        <select id="new-user-level" class="cbi-input-select" style="width: 200px;">
+                            <option value="viewer"><%:viewer%></option>
+                            <option value="operator"><%:operator%></option>
+                            <option value="admin"><%:admin%></option>
+                        </select>
+                    </td>
+                </tr>
+            </table>
+            <div style="margin-top: 10px;">
+                <button type="button" class="cbi-button cbi-button-apply" onclick="addUser()">
+                    <%:Add User%>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="cbi-section">
+    <h3><%:Daemon%></h3>
+    <div class="cbi-section-node">
+        <table class="cbi-section-table">
+            <tr>
+                <td><strong><%:Status%></strong></td>
+                <td id="daemon-status"><%:Loading...%></td>
+            </tr>
+            <tr>
+                <td><strong><%:Actions%></strong></td>
+                <td>
+                    <button type="button" class="cbi-button cbi-button-apply" onclick="controlDaemon('start')">
+                        <%:Start%>
+                    </button>
+                    <button type="button" class="cbi-button cbi-button-remove" onclick="controlDaemon('stop')">
+                        <%:Stop%>
+                    </button>
+                </td>
+            </tr>
+        </table>
+    </div>
+    <div class="cbi-section-node" style="margin-top: 10px;">
+        <h4><%:Configuration%></h4>
+        <form id="daemon-config-form" onsubmit="return false;">
+            <table class="cbi-section-table">
+                <tr>
+                    <td><strong><%:Monitor Target IP%></strong></td>
+                    <td><input type="text" id="daemon-target-ip" class="cbi-input-text" style="width: 200px;" placeholder="8.8.8.8" /></td>
+                </tr>
+                <tr>
+                    <td><strong><%:Interface%></strong></td>
+                    <td>
+                        <select id="daemon-interface" class="cbi-input-select" style="width: 200px;">
+                            <option value="eth0">eth0</option>
+                            <option value="br-lan">br-lan</option>
+                            <option value="wlan0">wlan0</option>
+                        </select>
+                    </td>
+                </tr>
+                <tr>
+                    <td><strong><%:Interval (seconds)%></strong></td>
+                    <td><input type="number" id="daemon-interval" class="cbi-input-text" style="width: 200px;" value="10" min="1" max="3600" /></td>
+                </tr>
+            </table>
+            <div style="margin-top: 10px;">
+                <button type="button" class="cbi-button cbi-button-apply" onclick="saveDaemonConfig()">
+                    <%:Save Configuration%>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="cbi-section">
+    <h3><%:API%></h3>
+    <div class="cbi-section-node">
+        <table class="cbi-section-table">
+            <tr>
+                <td><strong><%:Status%></strong></td>
+                <td id="api-status"><%:Loading...%></td>
+            </tr>
+            <tr>
+                <td><strong><%:Actions%></strong></td>
+                <td>
+                    <button type="button" class="cbi-button cbi-button-apply" onclick="controlApi('start')">
+                        <%:Start%>
+                    </button>
+                    <button type="button" class="cbi-button cbi-button-remove" onclick="controlApi('stop')">
+                        <%:Stop%>
+                    </button>
+                </td>
+            </tr>
+        </table>
+    </div>
+    <div class="cbi-section-node" style="margin-top: 10px;">
+        <h4><%:Configuration%></h4>
+        <form id="api-config-form" onsubmit="return false;">
+            <table class="cbi-section-table">
+                <tr>
+                    <td><strong><%:Port%></strong></td>
+                    <td><input type="number" id="api-port" class="cbi-input-text" style="width: 200px;" value="8080" min="1024" max="65535" /></td>
+                </tr>
+            </table>
+            <div style="margin-top: 10px;">
+                <button type="button" class="cbi-button cbi-button-apply" onclick="saveApiConfig()">
+                    <%:Save Configuration%>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="cbi-section">
+    <h3><%:Scheduler%></h3>
+    <div class="cbi-section-node">
+        <table class="cbi-section-table" id="scheduler-table">
+            <thead>
+                <tr>
+                    <th><%:Profile%></th>
+                    <th><%:Interface%></th>
+                    <th><%:Time%></th>
+                    <th><%:Repeat Daily%></th>
+                    <th><%:Actions%></th>
+                </tr>
+            </thead>
+            <tbody id="scheduler-body">
+                <tr><td colspan="5"><%:Loading schedules...%></td></tr>
+            </tbody>
+        </table>
+    </div>
+    <div class="cbi-section-node" style="margin-top: 10px;">
+        <h4><%:Add New Schedule%></h4>
+        <form id="schedule-form" onsubmit="return false;">
+            <table class="cbi-section-table">
+                <tr>
+                    <td><strong><%:Profile%></strong></td>
+                    <td>
+                        <select id="schedule-profile" class="cbi-input-select" style="width: 200px;">
+                            <option value=""><%:-- Select Profile --%></option>
+                        </select>
+                    </td>
+                </tr>
+                <tr>
+                    <td><strong><%:Interface%></strong></td>
+                    <td>
+                        <select id="schedule-interface" class="cbi-input-select" style="width: 200px;">
+                            <option value="eth0">eth0</option>
+                            <option value="br-lan">br-lan</option>
+                            <option value="wlan0">wlan0</option>
+                        </select>
+                    </td>
+                </tr>
+                <tr>
+                    <td><strong><%:Time (HH:MM)%></strong></td>
+                    <td><input type="time" id="schedule-time" class="cbi-input-text" style="width: 200px;" /></td>
+                </tr>
+                <tr>
+                    <td><strong><%:Repeat Daily%></strong></td>
+                    <td>
+                        <input type="checkbox" id="schedule-repeat" checked />
+                    </td>
+                </tr>
+            </table>
+            <div style="margin-top: 10px;">
+                <button type="button" class="cbi-button cbi-button-apply" onclick="addSchedule()">
+                    <%:Add Schedule%>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="cbi-section">
+    <h3><%:Presets%></h3>
+    <div class="cbi-section-node">
+        <table class="cbi-section-table" id="presets-table">
+            <thead>
+                <tr>
+                    <th><%:Name%></th>
+                    <th><%:Description%></th>
+                    <th><%:Actions%></th>
+                </tr>
+            </thead>
+            <tbody id="presets-body">
+                <tr><td colspan="3"><%:Loading presets...%></td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div id="settings-message" style="display: none; margin: 10px 0; padding: 10px; border-radius: 4px;"></div>
+
+<script type="text/javascript">
+//<![CDATA[
+
+function showMessage(msg, type) {
+    var el = document.getElementById('settings-message');
+    el.style.display = 'block';
+    el.textContent = msg;
+    if (type === 'error') {
+        el.style.backgroundColor = '#fce4e4';
+        el.style.color = '#c00';
+        el.style.border = '1px solid #c00';
+    } else {
+        el.style.backgroundColor = '#e4fce4';
+        el.style.color = '#060';
+        el.style.border = '1px solid #060';
+    }
+    setTimeout(function() {
+        el.style.display = 'none';
+    }, 4000);
+}
+
+function escapeHtml(text) {
+    var div = document.createElement('div');
+    div.appendChild(document.createTextNode(text));
+    return div.innerHTML;
+}
+
+// --- Users ---
+
+function loadUsers() {
+    XHR.get('<%=luci.dispatcher.build_url("admin", "nreplatform", "api", "settings_users")%>', null,
+        function(x, data) {
+            var tbody = document.getElementById('users-body');
+            if (!data || data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="3"><%:No users configured.%></td></tr>';
+                return;
+            }
+            tbody.innerHTML = '';
+            data.forEach(function(u) {
+                var tr = document.createElement('tr');
+                tr.innerHTML = '<td>' + escapeHtml(u.username) + '</td>' +
+                    '<td>' + escapeHtml(u.level) + '</td>' +
+                    '<td><button class="cbi-button cbi-button-remove" onclick="deleteUser(\'' +
+                        escapeHtml(u.username).replace(/'/g, "\\'") + '\')"><%:Delete%></button></td>';
+                tbody.appendChild(tr);
+            });
+        }
+    );
+}
+
+function addUser() {
+    var username = document.getElementById('new-username').value.trim();
+    var password = document.getElementById('new-password').value;
+    var level = document.getElementById('new-user-level').value;
+
+    if (!username || !password) {
+        showMessage('<%:Please enter username and password.%>', 'error');
+        return;
+    }
+
+    XHR.post('<%=luci.dispatcher.build_url("admin", "nreplatform", "api", "settings_users")%>',
+        JSON.stringify({ username: username, password: password, level: level }),
+        function(x, data) {
+            if (data && data.status === 'ok') {
+                showMessage('<%:User added successfully.%>', 'success');
+                document.getElementById('new-username').value = '';
+                document.getElementById('new-password').value = '';
+                document.getElementById('new-user-level').selectedIndex = 0;
+                loadUsers();
+            } else {
+                showMessage('<%:Failed to add user.%>', 'error');
+            }
+        }
+    );
+}
+
+function deleteUser(username) {
+    if (!confirm('<%:Are you sure you want to delete this user?%>')) {
+        return;
+    }
+    XHR.get('<%=luci.dispatcher.build_url("admin", "nreplatform", "api", "settings_delete_user")%>',
+        { username: username },
+        function(x, data) {
+            if (data && data.status === 'ok') {
+                showMessage('<%:User deleted.%>', 'success');
+                loadUsers();
+            } else {
+                showMessage('<%:Failed to delete user.%>', 'error');
+            }
+        }
+    );
+}
+
+// --- Daemon ---
+
+function loadDaemonStatus() {
+    XHR.get('<%=luci.dispatcher.build_url("admin", "nreplatform", "api", "settings_daemon_status")%>', null,
+        function(x, data) {
+            var el = document.getElementById('daemon-status');
+            if (data && data.running) {
+                el.innerHTML = '<span style="color: #060; font-weight: bold;"><%:Running%></span>';
+            } else {
+                el.innerHTML = '<span style="color: #c00; font-weight: bold;"><%:Stopped%></span>';
+            }
+        }
+    );
+}
+
+function controlDaemon(action) {
+    XHR.get('<%=luci.dispatcher.build_url("admin", "nreplatform", "api", "settings_daemon_control")%>',
+        { action: action },
+        function(x, data) {
+            if (data && data.status === 'ok') {
+                showMessage('<%:Daemon%> ' + action + ' <%:successfully.%>', 'success');
+                loadDaemonStatus();
+            } else {
+                showMessage('<%:Failed to%> ' + action + ' <%:daemon.%>', 'error');
+            }
+        }
+    );
+}
+
+function saveDaemonConfig() {
+    var targetIp = document.getElementById('daemon-target-ip').value.trim();
+    var iface = document.getElementById('daemon-interface').value;
+    var interval = document.getElementById('daemon-interval').value;
+
+    if (!targetIp) {
+        showMessage('<%:Please enter a target IP address.%>', 'error');
+        return;
+    }
+
+    XHR.post('<%=luci.dispatcher.build_url("admin", "nreplatform", "api", "settings_daemon_config")%>',
+        JSON.stringify({ target_ip: targetIp, interface: iface, interval: parseInt(interval) }),
+        function(x, data) {
+            if (data && data.status === 'ok') {
+                showMessage('<%:Daemon configuration saved.%>', 'success');
+            } else {
+                showMessage('<%:Failed to save daemon configuration.%>', 'error');
+            }
+        }
+    );
+}
+
+function loadDaemonConfig() {
+    XHR.get('<%=luci.dispatcher.build_url("admin", "nreplatform", "api", "settings_daemon_config")%>', null,
+        function(x, data) {
+            if (data) {
+                if (data.target_ip) document.getElementById('daemon-target-ip').value = data.target_ip;
+                if (data.interface) document.getElementById('daemon-interface').value = data.interface;
+                if (data.interval) document.getElementById('daemon-interval').value = data.interval;
+            }
+        }
+    );
+}
+
+// --- API ---
+
+function loadApiStatus() {
+    XHR.get('<%=luci.dispatcher.build_url("admin", "nreplatform", "api", "settings_api_status")%>', null,
+        function(x, data) {
+            var el = document.getElementById('api-status');
+            if (data && data.running) {
+                el.innerHTML = '<span style="color: #060; font-weight: bold;"><%:Running%></span>';
+            } else {
+                el.innerHTML = '<span style="color: #c00; font-weight: bold;"><%:Stopped%></span>';
+            }
+        }
+    );
+}
+
+function controlApi(action) {
+    XHR.get('<%=luci.dispatcher.build_url("admin", "nreplatform", "api", "settings_api_control")%>',
+        { action: action },
+        function(x, data) {
+            if (data && data.status === 'ok') {
+                showMessage('<%:API%> ' + action + ' <%:successfully.%>', 'success');
+                loadApiStatus();
+            } else {
+                showMessage('<%:Failed to%> ' + action + ' <%:API.%>', 'error');
+            }
+        }
+    );
+}
+
+function saveApiConfig() {
+    var port = document.getElementById('api-port').value;
+
+    XHR.post('<%=luci.dispatcher.build_url("admin", "nreplatform", "api", "settings_api_config")%>',
+        JSON.stringify({ port: parseInt(port) }),
+        function(x, data) {
+            if (data && data.status === 'ok') {
+                showMessage('<%:API configuration saved.%>', 'success');
+            } else {
+                showMessage('<%:Failed to save API configuration.%>', 'error');
+            }
+        }
+    );
+}
+
+function loadApiConfig() {
+    XHR.get('<%=luci.dispatcher.build_url("admin", "nreplatform", "api", "settings_api_config")%>', null,
+        function(x, data) {
+            if (data && data.port) {
+                document.getElementById('api-port').value = data.port;
+            }
+        }
+    );
+}
+
+// --- Scheduler ---
+
+function loadSchedules() {
+    XHR.get('<%=luci.dispatcher.build_url("admin", "nreplatform", "api", "settings_schedules")%>', null,
+        function(x, data) {
+            var tbody = document.getElementById('scheduler-body');
+            if (!data || data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5"><%:No schedules configured.%></td></tr>';
+                return;
+            }
+            tbody.innerHTML = '';
+            data.forEach(function(s, idx) {
+                var tr = document.createElement('tr');
+                var repeatStr = s.repeat_daily ? '<%:Yes%>' : '<%:No%>';
+                tr.innerHTML = '<td>' + escapeHtml(s.profile) + '</td>' +
+                    '<td>' + escapeHtml(s.interface) + '</td>' +
+                    '<td>' + escapeHtml(s.time) + '</td>' +
+                    '<td>' + repeatStr + '</td>' +
+                    '<td><button class="cbi-button cbi-button-remove" onclick="removeSchedule(' + idx + ')"><%:Remove%></button></td>';
+                tbody.appendChild(tr);
+            });
+        }
+    );
+}
+
+function addSchedule() {
+    var profile = document.getElementById('schedule-profile').value;
+    var iface = document.getElementById('schedule-interface').value;
+    var time = document.getElementById('schedule-time').value;
+    var repeat = document.getElementById('schedule-repeat').checked;
+
+    if (!profile || !time) {
+        showMessage('<%:Please select a profile and enter a time.%>', 'error');
+        return;
+    }
+
+    XHR.post('<%=luci.dispatcher.build_url("admin", "nreplatform", "api", "settings_schedules")%>',
+        JSON.stringify({ profile: profile, interface: iface, time: time, repeat_daily: repeat }),
+        function(x, data) {
+            if (data && data.status === 'ok') {
+                showMessage('<%:Schedule added successfully.%>', 'success');
+                document.getElementById('schedule-profile').selectedIndex = 0;
+                document.getElementById('schedule-interface').selectedIndex = 0;
+                document.getElementById('schedule-time').value = '';
+                document.getElementById('schedule-repeat').checked = true;
+                loadSchedules();
+            } else {
+                showMessage('<%:Failed to add schedule.%>', 'error');
+            }
+        }
+    );
+}
+
+function removeSchedule(index) {
+    if (!confirm('<%:Are you sure you want to remove this schedule?%>')) {
+        return;
+    }
+    XHR.get('<%=luci.dispatcher.build_url("admin", "nreplatform", "api", "settings_delete_schedule")%>',
+        { index: index },
+        function(x, data) {
+            if (data && data.status === 'ok') {
+                showMessage('<%:Schedule removed.%>', 'success');
+                loadSchedules();
+            } else {
+                showMessage('<%:Failed to remove schedule.%>', 'error');
+            }
+        }
+    );
+}
+
+function loadScheduleProfiles() {
+    XHR.get('<%=luci.dispatcher.build_url("admin", "nreplatform", "api", "experiments")%>', null,
+        function(x, data) {
+            var select = document.getElementById('schedule-profile');
+            select.innerHTML = '<option value=""><%:-- Select Profile --%></option>';
+            if (data) {
+                data.forEach(function(name) {
+                    var opt = document.createElement('option');
+                    opt.value = name;
+                    opt.textContent = name;
+                    select.appendChild(opt);
+                });
+            }
+        }
+    );
+}
+
+// --- Presets ---
+
+function loadPresets() {
+    XHR.get('<%=luci.dispatcher.build_url("admin", "nreplatform", "api", "settings_presets")%>', null,
+        function(x, data) {
+            var tbody = document.getElementById('presets-body');
+            if (!data || data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="3"><%:No presets available.%></td></tr>';
+                return;
+            }
+            tbody.innerHTML = '';
+            data.forEach(function(p) {
+                var tr = document.createElement('tr');
+                tr.innerHTML = '<td>' + escapeHtml(p.name) + '</td>' +
+                    '<td>' + escapeHtml(p.description || '--') + '</td>' +
+                    '<td><button class="cbi-button cbi-button-apply" onclick="savePresetAsProfile(\'' +
+                        escapeHtml(p.name).replace(/'/g, "\\'") + '\')"><%:Save as Profile%></button></td>';
+                tbody.appendChild(tr);
+            });
+        }
+    );
+}
+
+function savePresetAsProfile(presetName) {
+    XHR.post('<%=luci.dispatcher.build_url("admin", "nreplatform", "api", "settings_save_preset")%>',
+        JSON.stringify({ preset: presetName }),
+        function(x, data) {
+            if (data && data.status === 'ok') {
+                showMessage('<%:Preset saved as profile successfully.%>', 'success');
+            } else {
+                showMessage('<%:Failed to save preset as profile.%>', 'error');
+            }
+        }
+    );
+}
+
+// --- Initialize ---
+
+loadUsers();
+loadDaemonStatus();
+loadDaemonConfig();
+loadApiStatus();
+loadApiConfig();
+loadSchedules();
+loadScheduleProfiles();
+loadPresets();
+
+// Refresh statuses every 15 seconds
+setInterval(function() {
+    loadDaemonStatus();
+    loadApiStatus();
+}, 15000);
+
+//]]>
+</script>
+
+<%+footer%>

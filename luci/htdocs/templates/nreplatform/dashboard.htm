@@ -1,0 +1,131 @@
+<%+header%>
+
+<h2><%:NREPlatform Dashboard%></h2>
+
+<div class="cbi-section">
+    <h3><%:Network Status%></h3>
+    <div class="cbi-section-node">
+        <table class="cbi-section-table" id="status-table">
+            <tr><td><strong><%:Status%></strong></td><td id="net-status">Loading...</td></tr>
+            <tr><td><strong><%:Latency%></strong></td><td id="net-latency">-- ms</td></tr>
+            <tr><td><strong><%:Packet Loss%></strong></td><td id="net-loss">-- %</td></tr>
+            <tr><td><strong><%:Jitter%></strong></td><td id="net-jitter">-- ms</td></tr>
+            <tr><td><strong><%:Bandwidth%></strong></td><td id="net-bandwidth">-- Mb/s</td></tr>
+        </table>
+    </div>
+</div>
+
+<div class="cbi-section">
+    <h3><%:Quick Start Experiment%></h3>
+    <div class="cbi-section-node">
+        <form id="experiment-form">
+            <select id="profile-select" class="cbi-input-select">
+                <option value="">-- Select Profile --</option>
+            </select>
+            <select id="iface-select" class="cbi-input-select">
+                <option value="eth0">eth0</option>
+                <option value="br-lan">br-lan</option>
+            </select>
+            <button type="button" class="cbi-button cbi-button-apply" onclick="startExperiment()">
+                <%:Start Experiment%>
+            </button>
+        </form>
+        <div id="experiment-status" style="margin-top: 10px;"></div>
+    </div>
+</div>
+
+<div class="cbi-section">
+    <h3><%:Recent Experiments%></h3>
+    <div class="cbi-section-node">
+        <table class="cbi-section-table" id="history-table">
+            <thead>
+                <tr>
+                    <th><%:ID%></th>
+                    <th><%:Name%></th>
+                    <th><%:Type%></th>
+                    <th><%:Target%></th>
+                    <th><%:Duration%></th>
+                    <th><%:Status%></th>
+                    <th><%:Health%></th>
+                </tr>
+            </thead>
+            <tbody id="history-body">
+                <tr><td colspan="7"><%:Loading...%></td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script type="text/javascript">
+function loadProfiles() {
+    XHR.get('<%=luci.dispatcher.build_url("admin", "nreplatform", "api", "experiments")%>', null,
+        function(x, data) {
+            var select = document.getElementById('profile-select');
+            select.innerHTML = '<option value="">-- Select Profile --</option>';
+            if (data) {
+                data.forEach(function(name) {
+                    var opt = document.createElement('option');
+                    opt.value = name;
+                    opt.textContent = name;
+                    select.appendChild(opt);
+                });
+            }
+        }
+    );
+}
+
+function loadHistory() {
+    XHR.get('<%=luci.dispatcher.build_url("admin", "nreplatform", "api", "history")%>', null,
+        function(x, data) {
+            var tbody = document.getElementById('history-body');
+            if (!data || data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7"><%:No experiments yet.%></td></tr>';
+                return;
+            }
+            tbody.innerHTML = '';
+            data.forEach(function(r) {
+                var tr = document.createElement('tr');
+                tr.innerHTML = '<td>' + r.id + '</td>' +
+                    '<td>' + r.name + '</td>' +
+                    '<td>' + r.type + '</td>' +
+                    '<td>' + r.target + '</td>' +
+                    '<td>' + r.duration + 's</td>' +
+                    '<td>' + r.status + '</td>' +
+                    '<td>' + r.health + '</td>';
+                tbody.appendChild(tr);
+            });
+        }
+    );
+}
+
+function startExperiment() {
+    var profile = document.getElementById('profile-select').value;
+    var iface = document.getElementById('iface-select').value;
+    if (!profile) {
+        alert('<%:Please select a profile%>');
+        return;
+    }
+    document.getElementById('experiment-status').innerHTML = '<%:Starting experiment...%>';
+    XHR.get('<%=luci.dispatcher.build_url("admin", "nreplatform", "api", "start_experiment")%>',
+        { name: profile, iface: iface },
+        function(x, data) {
+            if (data && data.status === 'started') {
+                document.getElementById('experiment-status').innerHTML =
+                    '<%:Experiment started%>: ' + profile;
+            } else {
+                document.getElementById('experiment-status').innerHTML =
+                    '<%:Failed to start experiment%>';
+            }
+        }
+    );
+}
+
+// Load data on page load.
+loadProfiles();
+loadHistory();
+
+// Refresh every 30 seconds.
+setInterval(loadHistory, 30000);
+</script>
+
+<%+footer%>
