@@ -94,6 +94,17 @@ nre test run --profile-name "Poor Mobile" --iface eth0 --duration 120
 nre test list
 ```
 
-## Licencja
+
+Stworzone przez:
+  - Bartek Zygor:
+    Core engine (tc/netem, nftables, experiment): - 3 tyg.
+    Monitoring + metrics + chart: ~1 tydz + reps +=2
+    Policy engine + 10 actions: 2 tyg
+    
+  - Jakub Rozejwisz ( odszedł ):
+    Scheduler, daemon, API, LuCI: ~1 tydz
+    Permission, audit, presets, storage: ~2 dni
+    Integration, testing, debugging: ~4 dni
+    
 
 GNU Affero General Public License v3 (AGPL-3.0)
