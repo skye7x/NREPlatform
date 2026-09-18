@@ -48,7 +48,7 @@ bool TcControl::removeNetem(const std::string &interfaceName) {
     std::string command = "sudo tc qdisc del dev " + interfaceName + " root netem";
 
     bool success = runCommand(command);
-
+    //s
     if (success) {
         active = false;
         log.log("Netem removed from " + interfaceName + " (configuration restored)");
